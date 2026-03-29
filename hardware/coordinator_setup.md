@@ -1,12 +1,12 @@
 # XBee Coordinator Setup (Raspberry Pi)
 
-## 📌 Description
+## Description
 
 This document explains how to connect the XBee Coordinator module to the Raspberry Pi using GPIO (UART) for serial communication.
 
 ---
 
-## 🧩 Components Required
+## Components Required
 
 * Raspberry Pi (any model with GPIO)
 * XBee Module (Coordinator)
@@ -16,7 +16,7 @@ This document explains how to connect the XBee Coordinator module to the Raspber
 
 ---
 
-## 🔌 GPIO Connections
+## GPIO Connections
 
 ### XBee → Raspberry Pi
 
@@ -29,7 +29,7 @@ This document explains how to connect the XBee Coordinator module to the Raspber
 
 ---
 
-## ⚠️ Important Notes
+## Important Notes
 
 * Raspberry Pi GPIO works on **3.3V ONLY**
   → Do NOT connect 5V to XBee
@@ -41,7 +41,7 @@ This document explains how to connect the XBee Coordinator module to the Raspber
 
 ---
 
-## ⚙️ Enable Serial Communication on Raspberry Pi
+## Enable Serial Communication on Raspberry Pi
 
 ### 1. Open configuration tool
 
@@ -80,14 +80,14 @@ Expected output:
 
 ---
 
-## 🚀 Usage
+## Usage
 
 * Use `/dev/serial0` or `/dev/ttyS0` in your Python code
 * Ensure baud rate matches XBee configuration (e.g., 9600)
 
 ---
 
-## 🧠 Troubleshooting
+## Troubleshooting
 
 ### Issue: No data received
 
@@ -103,7 +103,7 @@ Expected output:
 
 ---
 
-## 📁 Related Files
+## Related Files
 
 * `/software/receiver.py` → receives data from XBee
 * `/software/send_data.py` → sends data
