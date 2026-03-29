@@ -9,9 +9,12 @@ To test motion detection using a PIR sensor interfaced directly with a ZigBee S2
 - Jumper Wires
 
 ## Connections
-- VCC → 5V
-- GND → GND
-- OUT → Digital Input (DIO1) of ZigBee
+
+| Pin (PIR Sensor) | Connected To                |
+|------------------|----------------------------|
+| VCC              | 5V                         |
+| GND              | GND                        |
+| OUT              | Digital Input (DIO1) of ZigBee |
 
 ## Working Principle
 The PIR sensor detects changes in infrared radiation caused by human movement.
