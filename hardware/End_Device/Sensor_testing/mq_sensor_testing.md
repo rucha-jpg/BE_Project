@@ -9,9 +9,12 @@ To measure air quality using an MQ gas sensor interfaced directly with a ZigBee 
 - Jumper Wires
 
 ## Connections
-- VCC → 5V
-- GND → GND
-- AOUT → Analog Input (DIO0/ADC) of ZigBee
+
+| Pin (MQ Sensor) | Connected To                |
+|-----------------|----------------------------|
+| VCC             | 5V                         |
+| GND             | GND                        |
+| AOUT            | Analog Input (DIO0/ADC) of ZigBee |
 
 ## Working Principle
 The MQ sensor detects the presence of gases in the environment and outputs an analog voltage proportional to gas concentration.
