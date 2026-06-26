@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toilet Stall Monitor</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 20px; }
+        h1 { color: #232f3e; margin-bottom: 20px; }
+        .cards { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+        .card { background: white; border-radius: 8px; padding: 20px; flex: 1; min-width: 150px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card p { color: #666; font-size: 14px; margin-bottom: 8px; }
+        .value { font-size: 28px; font-weight: bold; color: #232f3e; }
+        .status-badge { font-size: 22px; font-weight: bold; padding: 6px 16px; border-radius: 20px; display: inline-block; }
+        .Clean    { background: #d4edda; color: #155724; }
+        .Moderate { background: #fff3cd; color: #856404; }
+        .Dirty    { background: #f8d7da; color: #721c24; }
+        .HIGH { color: #e74c3c; font-weight: bold; }
+        .LOW  { color: #2ecc71; font-weight: bold; }
+        .table-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #232f3e; color: white; padding: 10px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #eee; }
+        tr:hover { background: #f9f9f9; }
+        .btn { border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 15px; }
+        .btn-refresh { background: #ff9900; color: white; }
+        .btn-refresh:hover { background: #e68a00; }
+        .btn-reset { background: #28a745; color: white; }
+        .btn-reset:hover { background: #218838; }
+        .alert-banner { border-radius: 8px; padding: 16px 24px; margin-bottom: 20px; font-size: 18px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        .alert-banner.hidden { display: none; }
+        .alert-banner.visible { display: flex; background: #721c24; color: white; animation: blink 1s step-start infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .dismiss-btn { background: white; color: #721c24; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .alert-log { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .alert-log h2 { margin-bottom: 12px; }
+        .log-entry { padding: 8px 12px; border-left: 4px solid #721c24; background: #f8d7da; margin-bottom: 8px; border-radius: 4px; font-size: 14px; color: #721c24; }
+        .no-alerts { color: #666; font-size: 14px; }
+        .reset-banner { display: none; background: #d4edda; color: #155724; border-radius: 8px; padding: 14px 24px; margin-bottom: 20px; font-size: 16px; font-weight: bold; }
+        .reset-banner.visible { display: block; }
+        .cleaned-row { background: #d4edda !important; }
+    </style>
+</head>
+<body>
+    <h1>Toilet Stall Monitor</h1>
+
+    <div class="alert-banner hidden" id="alert-banner">
+        <span id="alert-text">Stall requires immediate cleaning!</span>
+        <button class="dismiss-btn" onclick="dismissAlert()">Dismiss</button>
+    </div>
+
+    <div class="reset-banner" id="reset-banner">
+        Stall marked as cleaned. Occupancy count reset.
+    </div>
+
+    <div class="cards">
+        <div class="card">
+            <p>Stall Status</p>
+            <span class="status-badge" id="stall-status">--</span>
+        </div>
+        <div class="card">
+            <p>PIR Sensor</p>
+            <div class="value" id="pir-status">--</div>
+        </div>
+        <div class="card">
+            <p>MQ Air Quality (raw)</p>
+            <div class="value" id="mq-status">--</div>
+        </div>
+        <div class="card">
+            <p>Occupancy Count</p>
+            <div class="value" id="occupancy">0</div>
+        </div>
+        <div class="card">
+            <p>Last Updated</p>
+            <div class="value" style="font-size:15px" id="last-updated">--</div>
+        </div>
+    </div>
+
+    <div class="alert-log">
+        <h2>Alert Log</h2>
+        <div id="alert-log-entries"><p class="no-alerts">No alerts yet.</p></div>
+    </div>
+
+    <div class="table-card">
+        <div class="table-header">
+            <h2>Recent Readings</h2>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-reset" onclick="resetStall()">Cleaned - Reset</button>
+                <button class="btn btn-refresh" onclick="fetchData()">Refresh</button>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>PIR</th>
+                    <th>MQ</th>
+                    <th>Occupancy</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <tr><td colspan="5">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const API_URL = "https://ijym8vqi39.execute-api.eu-north-1.amazonaws.com/sensors";
+
+        const ALERT_INTERVAL_MS = 10 * 60 * 1000;
+        let lastAlertTime  = null;
+        let alertLog       = [];
+        let manualClean    = false;
+        let cleanedAt      = null;
+        let isDirty        = false;
+
+  
+        let occupancyCount = 0;
+        let lastPIRState   = "LOW";
+        let seenTimestamps = {}; 
+
+        function getStatus(mq, occupancy) {
+            if (occupancy > 3) return "Dirty";
+            if (occupancy > 2) return "Moderate";
+            return "Clean";
+        }
+
+        function triggerAlert(mq, occupancy) {
+            const msg = `Stall is DIRTY — Occupancy: ${occupancy}, MQ: ${mq}. Cleaning required!`;
+            document.getElementById('alert-text').textContent = msg;
+            document.getElementById('alert-banner').className = 'alert-banner visible';
+            alertLog.unshift({ time: new Date().toLocaleString(), mq, occupancy });
+            updateAlertLog();
+            if (Notification.permission === 'granted') {
+                new Notification('Stall Alert', { body: msg });
+            }
+        }
+
+        function showAlert(mq, occupancy) {
+            const now = Date.now();
+
+            if (!isDirty) {
+                isDirty       = true;
+                lastAlertTime = now;
+                triggerAlert(mq, occupancy);
+                return;
+            }
+
+            if (lastAlertTime && (now - lastAlertTime) < ALERT_INTERVAL_MS) return;
+            lastAlertTime = now;
+            triggerAlert(mq, occupancy);
+        }
+
+        function dismissAlert() {
+            document.getElementById('alert-banner').className = 'alert-banner hidden';
+        }
+
+        function updateAlertLog() {
+            const container = document.getElementById('alert-log-entries');
+            if (!alertLog.length) {
+                container.innerHTML = '<p class="no-alerts">No alerts yet.</p>';
+                return;
+            }
+            container.innerHTML = alertLog.slice(0, 10).map(a =>
+                `<div class="log-entry">
+                    ${a.time} — ${a.occupancy === '0 (reset)'
+                        ? 'Stall marked Clean'
+                        : `Stall DIRTY | MQ: ${a.mq} | Occupancy: ${a.occupancy}`}
+                </div>`
+            ).join('');
+        }
+
+        function resetStall() {
+            manualClean    = true;
+            cleanedAt      = Math.floor(Date.now() / 1000);
+            occupancyCount = 0;
+            lastPIRState   = "LOW";
+            seenTimestamps = {}; 
+            isDirty        = false;
+
+            const badge = document.getElementById('stall-status');
+            badge.textContent = 'Clean';
+            badge.className   = 'status-badge Clean';
+            document.getElementById('occupancy').textContent = '0';
+
+            dismissAlert();
+
+            const banner = document.getElementById('reset-banner');
+            banner.classList.add('visible');
+            setTimeout(() => banner.classList.remove('visible'), 4000);
+
+            alertLog.unshift({ time: new Date().toLocaleString(), mq: '--', occupancy: '0 (reset)' });
+            updateAlertLog();
+            lastAlertTime = Date.now();
+            fetchData();
+        }
+
+        function fetchData() {
+            fetch(API_URL)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.length) return;
+
+                    const sorted = [...data]
+                        .map(r => r.payload)
+                        .sort((a, b) => parseInt(a.timestamp) - parseInt(b.timestamp));
+
+
+                    sorted.forEach(p => {
+                        const ts = parseInt(p.timestamp);
+                        if (cleanedAt && ts < cleanedAt) return; 
+                        if (seenTimestamps[ts]) return;          
+
+                        if (p.PIR === "HIGH" && lastPIRState === "LOW") {
+                            occupancyCount++;
+                        }
+                        lastPIRState    = p.PIR;
+                        seenTimestamps[ts] = true;
+                    });
+
+                    document.getElementById('occupancy').textContent = occupancyCount;
+
+                    const latest   = sorted[sorted.length - 1];
+                    const latestTs = parseInt(latest.timestamp);
+                    const latestMQ = parseInt(latest.MQ);
+                    const status   = manualClean ? "Clean" : getStatus(latestMQ, occupancyCount);
+
+                    const badge = document.getElementById('stall-status');
+                    badge.textContent = status;
+                    badge.className   = 'status-badge ' + status;
+
+                    const pirEl = document.getElementById('pir-status');
+                    pirEl.textContent = latest.PIR;
+                    pirEl.className   = 'value ' + latest.PIR;
+
+                    document.getElementById('mq-status').textContent   = latestMQ;
+                    document.getElementById('last-updated').textContent =
+                        new Date(latestTs * 1000).toLocaleString();
+
+
+                    if (status === 'Dirty') {
+                        showAlert(latestMQ, occupancyCount);
+                    } else {
+                        isDirty = false; 
+                        dismissAlert();
+                    }
+
+                    if (status === 'Clean') manualClean = false;
+
+
+                    let dispOcc = 0;
+                    let dispPIR = "LOW";
+                    const occPerTs = {};
+                    sorted.forEach(p => {
+                        const ts = parseInt(p.timestamp);
+                        if (cleanedAt && ts < cleanedAt) {
+                            occPerTs[ts] = null;
+                            return;
+                        }
+                        if (p.PIR === "HIGH" && dispPIR === "LOW") dispOcc++;
+                        dispPIR      = p.PIR;
+                        occPerTs[ts] = dispOcc;
+                    });
+
+
+                    const descData      = [...data].sort((a, b) =>
+                        parseInt(b.payload.timestamp) - parseInt(a.payload.timestamp)
+                    );
+                    let tableHTML       = '';
+                    let cleanedInserted = false;
+
+                    descData.forEach(row => {
+                        const p      = row.payload;
+                        const rowTs  = parseInt(p.timestamp);
+                        const rowMQ  = parseInt(p.MQ);
+                        const rowOcc = occPerTs[rowTs];
+
+                        if (cleanedAt && !cleanedInserted && rowTs < cleanedAt) {
+                            cleanedInserted = true;
+                            tableHTML += `<tr class="cleaned-row">
+                                <td>${new Date(cleanedAt * 1000).toLocaleString()} <strong>(Cleaned)</strong></td>
+                                <td>--</td><td>--</td><td>0</td>
+                                <td><span class="status-badge Clean">Clean</span></td>
+                            </tr>`;
+                        }
+
+                        const rowStatus = rowOcc === null
+                            ? getStatus(rowMQ, 0)
+                            : getStatus(rowMQ, rowOcc);
+
+                        tableHTML += `<tr>
+                            <td>${new Date(rowTs * 1000).toLocaleString()}</td>
+                            <td class="${p.PIR}">${p.PIR}</td>
+                            <td>${rowMQ}</td>
+                            <td>${rowOcc === null ? '--' : rowOcc}</td>
+                            <td><span class="status-badge ${rowStatus}">${rowStatus}</span></td>
+                        </tr>`;
+                    });
+
+                    document.getElementById('table-body').innerHTML = tableHTML;
+                })
+                .catch(err => console.error('Error:', err));
+        }
+
+        if (Notification.permission !== 'granted') Notification.requestPermission();
+
+        fetchData();
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+</html>
